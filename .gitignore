@@ -1,0 +1,12 @@
+.gradle/
+.idea/
+/build/
+/desktop/build/
+/core/build/
+/android/build/
+/android/assets/
+*.iml
+local.properties
+.DS_Store
+/out/
+*.log
