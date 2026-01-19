@@ -1,9 +1,11 @@
 package com.arboreus.visuals;
 
-import com.arboreus.logic.BinaryTree;
+import com.arboreus.logic.TreeLogic;
 import com.arboreus.logic.TreeNode;
 import com.arboreus.logic.GameStateManager;
 import com.arboreus.logic.NumberGenerator;
+import com.arboreus.logic.RedBlackTree;
+import com.arboreus.logic.RBTOperation;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -36,7 +38,7 @@ import java.util.Map;
 
 public class GameScreen extends ScreenAdapter implements InputProcessor {
     private Stage stage;
-    private BinaryTree tree;
+    private TreeLogic tree;
     private ShapeRenderer shapeRenderer;
     private Skin skin;
     private Texture circleTexture;
@@ -67,10 +69,21 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
     // Layout Constants
     private static final float TOP_MARGIN = 150f; // More space for HUD and spawn
 
+    private boolean isBSTMode; // Flag for visuals
+
     public GameScreen() {
+        // Task 2: Fix Logic Initialization
+        com.arboreus.ArboreusGame game = (com.arboreus.ArboreusGame) Gdx.app.getApplicationListener();
+        if (game.currentMode == com.arboreus.ArboreusGame.GameMode.RBT) {
+            this.tree = new RedBlackTree();
+            this.isBSTMode = false;
+        } else {
+            this.tree = new com.arboreus.logic.BinaryTree();
+            this.isBSTMode = true;
+        }
+
         stage = new Stage(new ScreenViewport());
         shapeRenderer = new ShapeRenderer();
-        tree = new BinaryTree();
 
         // Initialize Logic Managers
         gameStateManager = new GameStateManager(3); // 3 Lives default
@@ -138,9 +151,10 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
         statsTable.add(scoreLabel).align(Align.left).row();
         statsTable.add(livesLabel).align(Align.left).padTop(10);
 
-        // 2. Header (Center)
+        // 2. Header (Center) - Task 3 Fix
+        String headerKey = isBSTMode ? "game_header_bst" : "game_header_rbt";
         Label.LabelStyle headerStyle = new Label.LabelStyle(skin.getFont("title"), Color.WHITE);
-        Label headerLabel = new Label(AssetGenerationHelper.i18n.get("game_header"), headerStyle);
+        Label headerLabel = new Label(AssetGenerationHelper.i18n.get(headerKey), headerStyle);
 
         // 3. Info Button (Right)
         Texture infoTex = new Texture(Gdx.files.internal("circle.png"));
@@ -219,7 +233,7 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
 
         int nextValue = numberGenerator.generateUniqueNumber();
         TreeNode tempNode = new TreeNode(nextValue);
-        activeFallingNode = new NodeActor(tempNode, skin, circleTexture);
+        activeFallingNode = new NodeActor(tempNode, skin, circleTexture, isBSTMode);
 
         // Spawn below Top Margin to avoid clipping
         float startX = Gdx.graphics.getWidth() / 2f - activeFallingNode.getWidth() / 2;
@@ -229,8 +243,8 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
         stage.addActor(activeFallingNode);
 
         // Target: Root comparison
-        if (tree.root != null) {
-            currentComparisonNode = nodeActors.get(tree.root);
+        if (tree.getRoot() != null) {
+            currentComparisonNode = nodeActors.get(tree.getRoot());
             moveToComparison();
         } else {
             tree.insert(nextValue);
@@ -277,6 +291,7 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
 
         activeFallingNode.remove();
         activeFallingNode = null;
+        currentState = GameState.SPAWNING; // Block input immediately
 
         if (!success) {
             // Tree too deep (Mistake)
@@ -317,7 +332,114 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
             victorySound.play(1.0f);
             showVictorySequence();
         } else {
+            // RBT Animation Logic
+            if (!isBSTMode) {
+                java.util.List<RBTOperation> steps = tree.flushOperations();
+                if (!steps.isEmpty()) {
+                    playNextRBTStep(steps);
+                } else {
+                    rebuildVisualTreeFromLogic();
+                    spawnNextNode();
+                }
+            } else {
+                spawnNextNode();
+            }
+        }
+    }
+
+    private void playNextRBTStep(java.util.List<RBTOperation> steps) {
+        if (steps.isEmpty()) {
+            // Animation Complete
+            rebuildVisualTreeFromLogic(); // Final sync
             spawnNextNode();
+            return;
+        }
+
+        RBTOperation op = steps.remove(0);
+        float delay = 1.0f;
+
+        // 1. Show Description Label
+        Label stepLabel = new Label(op.description, skin, "default");
+        stepLabel.setColor(Color.YELLOW);
+        stepLabel.setPosition(Gdx.graphics.getWidth() / 2f - stepLabel.getWidth() / 2f,
+                Gdx.graphics.getHeight() - 120);
+        stepLabel.addAction(Actions.sequence(
+                Actions.moveBy(0, 50, 1.5f),
+                Actions.fadeOut(1.5f),
+                Actions.removeActor()));
+        stage.addActor(stepLabel);
+
+        // 2. Perform Action
+        switch (op.type) {
+            case RECOLOR:
+                if (op.affectedNode != null && nodeActors.containsKey(op.affectedNode)) {
+                    NodeActor actor = nodeActors.get(op.affectedNode);
+                    // Just trigger updateColor logic but maybe tween it?
+                    // NodeActor has internal logic for color. We need to force update it.
+                    // But wait, the logical node is ALREADY updated!
+                    // So just calling updateColor(isBSTMode) will snap it.
+                    // We want a slow transition if possible.
+                    // For now, let's just snap cleanly with the label explaining it.
+                    actor.updateColor(isBSTMode);
+                    // Flash it?
+                    actor.addAction(Actions.sequence(
+                            Actions.scaleTo(1.2f, 1.2f, 0.2f),
+                            Actions.scaleTo(1.0f, 1.0f, 0.2f)));
+                }
+                break;
+            case ROTATE_LEFT:
+            case ROTATE_RIGHT:
+                // Rotation visual is tricky. Best way: Recalculate target positions for
+                // EVERYONE
+                // and tween them there.
+                // NOTE: RBTOperation happens AFTER logic change in our impl (mostly).
+                // But wait, we flush operations AFTER insert is fully done.
+                // So the tree is ALREADY balanced.
+                // "Animation" here is reconstructing the intermediate steps visual?
+                // Actually, since we only get the full list at the end, the logic is already
+                // Final.
+                // We can't easily show "intermediate" states unless we snapshot the logic.
+                // BUT, the user prompt said "Rotate... use this trick: Calculate new target
+                // positions... slowly slide".
+                // Since logic is already final, calling 'recalculatePositions' produces the
+                // FINAL state.
+                // So all rotations in the list will visually look like the Final state sliding
+                // in.
+                // This is a limitation of post-flush.
+                // However, seeing them slide is better than instant snap.
+
+                // Trigger global move
+                animateGlobalMove();
+                delay = 1.5f;
+                break;
+            case INSERT:
+                // Just the label is enough
+                break;
+        }
+
+        // 3. Next Step
+        stage.addAction(Actions.sequence(
+                Actions.delay(delay),
+                Actions.run(() -> playNextRBTStep(steps))));
+    }
+
+    private void animateGlobalMove() {
+        // Recalculate target positions based on CURRENT logical structure (which is
+        // already final)
+        float startX = Gdx.graphics.getWidth() / 2f;
+        float startY = Gdx.graphics.getHeight() - TOP_MARGIN - 80;
+        tree.recalculatePositions(startX, startY, Gdx.graphics.getWidth() / 2f, 80);
+
+        for (Map.Entry<TreeNode, NodeActor> entry : nodeActors.entrySet()) {
+            TreeNode node = entry.getKey();
+            NodeActor actor = entry.getValue();
+
+            float targetX = node.targetX - actor.getWidth() / 2;
+            float targetY = node.targetY - actor.getHeight() / 2;
+
+            if (Math.abs(actor.getX() - targetX) > 1 || Math.abs(actor.getY() - targetY) > 1) {
+                actor.addAction(Actions.moveTo(targetX, targetY, 1.5f, Interpolation.pow2Out));
+            }
         }
     }
 
@@ -366,7 +488,8 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
             }
         };
 
-        Label text = new Label(AssetGenerationHelper.i18n.get("info_text"), skin, "info-body");
+        String infoKey = isBSTMode ? "info_text" : "info_text_rbt";
+        Label text = new Label(AssetGenerationHelper.i18n.get(infoKey), skin, "info-body");
         text.setWrap(true);
         text.setAlignment(Align.center);
 
@@ -516,7 +639,7 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
         if (node == null)
             return;
 
-        NodeActor actor = new NodeActor(node, skin, circleTexture);
+        NodeActor actor = new NodeActor(node, skin, circleTexture, isBSTMode);
 
         // Position logic
         float targetX = node.targetX - actor.getWidth() / 2;
@@ -529,6 +652,24 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
 
         addNodeActorsRecursive(node.left, node);
         addNodeActorsRecursive(node.right, node);
+    }
+
+    private void rebuildVisualTreeFromLogic() {
+        // 1. Recalculate positions
+        float startX = Gdx.graphics.getWidth() / 2f;
+        float startY = Gdx.graphics.getHeight() - TOP_MARGIN - 80;
+        tree.recalculatePositions(startX, startY, Gdx.graphics.getWidth() / 2f, 80);
+
+        // 2. Remove existing NodeActors
+        for (NodeActor actor : nodeActors.values()) {
+            actor.remove();
+        }
+        nodeActors.clear();
+
+        // 3. Rebuild from Root
+        if (tree.getRoot() != null) {
+            addNodeActorsRecursive(tree.getRoot(), null);
+        }
     }
 
     public void rebuildStage() {
@@ -548,8 +689,8 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
 
         tree.recalculatePositions(startX, startY, Gdx.graphics.getWidth() / 2f, 80);
 
-        if (tree.root != null) {
-            addNodeActorsRecursive(tree.root, null);
+        if (tree.getRoot() != null) {
+            addNodeActorsRecursive(tree.getRoot(), null);
         }
 
         if (tempActive != null) {
@@ -676,6 +817,9 @@ public class GameScreen extends ScreenAdapter implements InputProcessor {
         if (currentState == GameState.GAME_OVER)
             return false;
         if (currentState != GameState.WAITING_FOR_DECISION)
+            return false;
+
+        if (activeFallingNode == null)
             return false;
 
         int fallingVal = activeFallingNode.getNodeData().value;

@@ -1,10 +1,26 @@
 package com.arboreus.logic;
 
-public class BinaryTree {
+public class BinaryTree implements TreeLogic {
     public TreeNode root;
 
-    private static final int MAX_DEPTH = 6;
+    private static final int MAX_DEPTH = 5;
 
+    @Override
+    public void reset() {
+        root = null;
+    }
+
+    @Override
+    public java.util.List<RBTOperation> flushOperations() {
+        return java.util.Collections.emptyList();
+    }
+
+    @Override
+    public TreeNode getRoot() {
+        return root;
+    }
+
+    @Override
     public boolean insert(int value) {
         if (!canInsert(root, value, 0))
             return false;
@@ -12,7 +28,7 @@ public class BinaryTree {
         return true;
     }
 
-    private boolean canInsert(TreeNode node, int value, int depth) {
+    protected boolean canInsert(TreeNode node, int value, int depth) {
         if (depth >= MAX_DEPTH)
             return false;
         if (node == null)
@@ -30,15 +46,19 @@ public class BinaryTree {
             return root;
         }
 
-        if (value < root.value)
+        if (value < root.value) {
             root.left = insertRec(root.left, value);
-        else if (value > root.value)
+            root.left.parent = root;
+        } else if (value > root.value) {
             root.right = insertRec(root.right, value);
+            root.right.parent = root;
+        }
 
         return root;
     }
 
     // Simple layout calculation (can be expanded)
+    @Override
     public void recalculatePositions(float startX, float startY, float hSpacing, float vSpacing) {
         recalculateRec(root, startX, startY, hSpacing, vSpacing, 0);
     }
@@ -60,10 +80,12 @@ public class BinaryTree {
         recalculateRec(node.right, x + offset, y - vSpacing, hSpacing, vSpacing, level + 1);
     }
 
+    @Override
     public boolean shouldGoRight(int currentValue, int targetNodeValue) {
         return currentValue > targetNodeValue;
     }
 
+    @Override
     public boolean shouldGoLeft(int currentValue, int targetNodeValue) {
         return currentValue < targetNodeValue;
     }

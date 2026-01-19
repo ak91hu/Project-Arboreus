@@ -78,7 +78,18 @@ public class MainMenuScreen extends ScreenAdapter {
         // Top 1/3 approx positions with padding fixed
         table.add(titleLabel).padTop(Gdx.graphics.getHeight() * 0.33f).padBottom(50).row();
         // Button centered, 400x80
+        // Button centered, 400x80
         table.add(bstButton).size(400, 80).padTop(0).row(); // Reduced top pad since Title has bottom pad
+
+        TextButton rbtButton = new TextButton(AssetGenerationHelper.i18n.get("menu_rbt"), skin, "cyber");
+        rbtButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                clickSound.play(1.0f);
+                ((ArboreusGame) Gdx.app.getApplicationListener()).switchToGameScreen("RBT");
+            }
+        });
+        table.add(rbtButton).size(400, 80).padTop(20).row();
 
         TextButton exitButton = new TextButton(AssetGenerationHelper.i18n.get("menu_exit"), skin, "cyber");
         exitButton.addListener(new ClickListener() {

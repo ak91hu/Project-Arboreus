@@ -7,16 +7,28 @@ import com.badlogic.gdx.utils.ScreenUtils;
 
 public class ArboreusGame extends Game {
 
+    public enum GameMode {
+        BST, RBT
+    }
+
+    public GameMode currentMode = GameMode.BST;
+
     @Override
     public void create() {
         com.arboreus.visuals.AssetGenerationHelper.loadSystems();
         setScreen(new com.arboreus.screens.MainMenuScreen());
     }
 
-    public void switchToGameScreen(String gameMode) {
-        if ("BST".equals(gameMode)) {
-            setScreen(new com.arboreus.visuals.GameScreen());
+    public void setGameMode(String modeType) {
+        if ("RBT".equals(modeType)) {
+            currentMode = GameMode.RBT;
+        } else {
+            currentMode = GameMode.BST;
         }
-        // Future modes can be added here
+    }
+
+    public void switchToGameScreen(String gameMode) {
+        setGameMode(gameMode);
+        setScreen(new com.arboreus.visuals.GameScreen());
     }
 }

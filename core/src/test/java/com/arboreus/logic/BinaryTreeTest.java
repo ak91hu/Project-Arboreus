@@ -19,8 +19,8 @@ public class BinaryTreeTest {
         TreeNode root = tree.root;
         assertNotNull(root);
         assertEquals(50, root.value);
-        assertEquals(0, root.x, 0.001);
-        assertEquals(0, root.y, 0.001);
+        assertEquals(0, root.targetX, 0.001);
+        assertEquals(0, root.targetY, 0.001);
 
         // Left subtree
         assertNotNull(root.left);

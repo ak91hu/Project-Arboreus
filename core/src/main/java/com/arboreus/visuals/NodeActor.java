@@ -15,9 +15,11 @@ public class NodeActor extends Group {
     private Image background;
     private Image glow;
     private Label label;
+    private boolean isBSTMode; // Store mode to enforce visuals
 
-    public NodeActor(TreeNode nodeData, Skin skin, Texture circleTexture) {
+    public NodeActor(TreeNode nodeData, Skin skin, Texture circleTexture, boolean isBSTMode) {
         this.nodeData = nodeData;
+        this.isBSTMode = isBSTMode;
 
         // 1. Glow Effect (Behind main circle)
         glow = new Image(circleTexture);
@@ -27,9 +29,9 @@ public class NodeActor extends Group {
         glow.setPosition(-5, -5); // Offset to center relative to main (60x60)
         addActor(glow);
 
-        // 2. Main Background Circle (Cyber-Nature: Neon Yellow tint)
+        // 2. Main Background Circle
         background = new Image(circleTexture);
-        background.setColor(Color.WHITE); // Use texture colors directly
+        updateColor(isBSTMode); // Set initial color
         background.setSize(60, 60);
         background.setOrigin(Align.center);
         addActor(background);
@@ -56,7 +58,37 @@ public class NodeActor extends Group {
                         Actions.scaleTo(0.95f, 0.95f, 0.5f, com.badlogic.gdx.math.Interpolation.sine))));
     }
 
+    @Override
+    public void draw(com.badlogic.gdx.graphics.g2d.Batch batch, float parentAlpha) {
+        // STRICT VISUAL ENFORCEMENT
+        // Ensure RBT nodes never turn Green (Success color override prevention)
+        if (!isBSTMode) {
+            if (nodeData.isRed) {
+                background.setColor(Color.RED);
+            } else {
+                background.setColor(Color.DARK_GRAY);
+            }
+        }
+        super.draw(batch, parentAlpha);
+    }
+
     public TreeNode getNodeData() {
         return nodeData;
+    }
+
+    public void updateColor(boolean isBSTMode) {
+        this.isBSTMode = isBSTMode;
+        if (background == null)
+            return;
+
+        if (isBSTMode) {
+            background.setColor(Color.WHITE); // Default texture color (Neon Yellowish)
+        } else {
+            if (nodeData.isRed) {
+                background.setColor(Color.RED);
+            } else {
+                background.setColor(Color.DARK_GRAY);
+            }
+        }
     }
 }

@@ -41,8 +41,10 @@ public class GameStateManager {
         return lives <= 0;
     }
 
+    private static final int TARGET_SCORE = 1500;
+
     public boolean checkWinCondition() {
-        return score >= 500;
+        return score >= TARGET_SCORE;
     }
 
     public void reset(int initialLives) {
